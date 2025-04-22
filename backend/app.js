@@ -13,7 +13,7 @@ const axios=require('axios')
 const app = express();
 
 app.use(cors({
-    origin: 'http://localhost:8080', // 👈 specific origin, not '*'
+    origin: 'https://aitimemanage.vercel.app/', // 👈 specific origin, not '*'
     credentials: true,               // 👈 allow credentials like cookies
   }));
 app.use(express.json());
