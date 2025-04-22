@@ -11,7 +11,11 @@ const json2csv = require('json2csv').parse;
 const { ObjectId } = require("mongodb");
 const axios=require('axios')
 const app = express();
-app.use(cors());
+
+app.use(cors({
+    origin: 'http://localhost:8080', // 👈 specific origin, not '*'
+    credentials: true,               // 👈 allow credentials like cookies
+  }));
 app.use(express.json());
 
 let db;
@@ -184,7 +188,7 @@ app.post("/timeAi/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ message: "Invalid credentials" });
 
     const token = jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET);
-    res.json({ message: "Login successful" });
+    res.json({ message: "Login successful",token });
 });
 
 // --- Add Task ---
@@ -370,33 +374,117 @@ app.get("/timeAi/recommend", timeAiAuthMiddleware, async (req, res) => {
 });
 
 // --- Mark Task as Completed ---
-app.put("/timeAi/task/:id/complete", timeAiAuthMiddleware, async (req, res) => {
-    const { id } = req.params;
+// app.put("/timeAi/task/:id/complete", timeAiAuthMiddleware, async (req, res) => {
+//     const { id } = req.params;
 
-    // Validate ObjectId format
-    if (!ObjectId.isValid(id)) {
-        return res.status(400).json({ error: "Invalid task ID" });
-    }
+//     // Validate ObjectId format
+//     if (!ObjectId.isValid(id)) {
+//         return res.status(400).json({ error: "Invalid task ID" });
+//     }
 
-    const taskId = new ObjectId(id);
+//     const taskId = new ObjectId(id);
 
-    try {
-        // Update the task's 'completed' field
-        const updatedTask = await db.collection("timeAitasks").findOneAndUpdate(
-            { _id: taskId, userId: new ObjectId(req.user.id) },
-            { $set: { completed: true } },
-            { returnDocument: "after" } // To return the document after it is updated
-        );
+//     try {
+//         // Update the task's 'completed' field
+//         const updatedTask = await db.collection("timeAitasks").findOneAndUpdate(
+//             { _id: taskId, userId: new ObjectId(req.user.id) },
+//             { $set: { completed: true } },
+//             { returnDocument: "after" } // To return the document after it is updated
+//         );
+
+//         // Check if the task was found and updated
+//         if (!updatedTask.value) {
+//             return res.status(404).json({ error: "Task not found or already marked as completed" });
+//         }
+
+//         // Debugging log to verify the result of the update
+//         console.log('Updated Task:', updatedTask.value);
+
+//         res.json({ message: "Task marked as completed", task: updatedTask.value });
+//     } catch (error) {
+//         console.error("Error marking task as completed:", error);
+//         res.status(500).json({ error: "Internal server error" });
+//     }
+// });
+
+// app.put("/timeAi/complete/:id", timeAiAuthMiddleware, async (req, res) => {
+//     const { id } = req.params;
+//     const { completed } = req.body;
   
-          res.json({ message: "Task marked as completed"});
-        // Handle response based on the result of the update operation
-      
-    } catch (error) {
-        console.error("Error marking task as completed:", error);
-        res.status(500).json({ error: "Internal server error" });
+//     // Validate 'completed' status
+//     if (typeof completed !== "boolean") {
+//       return res.status(400).json({ message: "Invalid 'completed' status" });
+//     }
+  
+//     try {
+//       // Convert id to ObjectId
+//       const objectId = new ObjectId(id);
+  
+//       // Find and update the task
+//       const updatedTask = await db.collection("timeAitasks").findOneAndUpdate(
+//         { _id: objectId },
+//         { $set: { completed } },
+//         { returnDocument: "after" } // return the updated document
+//       );
+  
+    
+  
+//       // Check if the task is already in desired state (before update)
+//       if (updatedTask.value.completed === true) {
+//         return res.status(400).json({ message: "Task is already in the desired state" });
+//       }
+  
+//       return res.status(200).json({ message: "Task updated successfully", task: updatedTask.value });
+//     } catch (error) {
+//       return res.status(500).json({ message: "Error updating task", error: error.message });
+//     }
+//   });
+  
+  
+app.put("/timeAi/complete/:id", timeAiAuthMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const { completed } = req.body;
+  
+    // Validate 'completed' status to be a boolean
+    if (typeof completed !== "boolean") {
+      return res.status(400).json({ message: "Invalid 'completed' status" });
     }
-});
-
+  
+    try {
+      // Convert the task ID to an ObjectId
+      const objectId = new ObjectId(id);
+  
+      // Fetch the existing task to check the current completion status
+      const existingTask = await db.collection("timeAitasks").findOne({ _id: objectId });
+  
+      // If the task does not exist
+      if (!existingTask) {
+        return res.status(404).json({ message: "Task not found" });
+      }
+  
+      // Check if the task is already in the desired state (completed or not)
+      if (existingTask.completed === completed) {
+        return res.status(400).json({
+          message: `Task is already marked as ${completed ? "completed" : "incomplete"}`,
+        });
+      }
+  
+      // Update the task completion status
+      const updatedTask = await db.collection("timeAitasks").findOneAndUpdate(
+        { _id: objectId },
+        { $set: { completed } },
+        { returnDocument: "after" } // Return the updated document
+      );
+  
+      // Return the updated task data
+      return res.status(200).json({
+        message: "Task updated successfully",
+        task: updatedTask.value,
+      });
+    } catch (error) {
+      return res.status(500).json({ message: "Error updating task", error: error.message });
+    }
+  });
 
 // --- Export Task Data (CSV) ---
 app.get("/timeAi/export", timeAiAuthMiddleware, async (req, res) => {
