@@ -13,9 +13,10 @@ const axios=require('axios')
 const app = express();
 
 app.use(cors({
-    origin: 'https://aitimemanage.vercel.app/', // 👈 specific origin, not '*'
-    credentials: true,               // 👈 allow credentials like cookies
-  }));
+  origin: 'https://aitimemanage.vercel.app', // Remove the trailing slash
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+}));
 app.use(express.json());
 
 let db;
